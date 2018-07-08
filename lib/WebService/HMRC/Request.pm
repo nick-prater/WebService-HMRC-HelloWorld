@@ -7,7 +7,7 @@ use Carp;
 use LWP::UserAgent;
 use Moose;
 use namespace::autoclean;
-use Try::Tiny;
+use URI;
 use WebService::HMRC::Response;
 
 
@@ -26,19 +26,30 @@ our $VERSION = '0.01';
 =head1 DESCRIPTION
 
 This is a base class for making requests to the UK's HMRC Making Tax Digital
-API. It is usually inherited by other higher-level classes.
+API. It is usually inherited by other higher-level classes rather than being
+used directly.
+
+This class provides a LWP::UserAgent with appropriate headers set and a method
+for constructing api endpoint urls.
 
 =head1 SYNOPSIS
 
     use WebService::HMRC::Request;
-    my $hmrc = WebService::HMRC::Request->new();
+    my $r = WebService::HMRC::Request->new(
+        base_url    => 'https://test-api.service.hmrc.gov.uk/',
+        api_version => '1.0',
+    );
+
+    my $url = $r->endpoint_url('/hello/world');
+    my $http_response = $r->ua->get($url);
 
     
 =head1 PROPERTIES
 
 =head2 base_url
 
-Base url used for calls to the HMRC "Making Tax Digital" API.
+Base url used for calls to the HMRC "Making Tax Digital" API. Defaults to test
+url `https://test-api.service.hmrc.gov.uk/` if not specified.
 
 See:
 L<https://developer.service.hmrc.gov.uk/api-documentation/docs/reference-guide>
@@ -54,7 +65,7 @@ has base_url => (
 =head2 api_version
 
 Read-only property which defines the API version in use by this module as a string.
-For example `1.0`.
+Defaults to `1.0` if not specified.
 
 See:
 L<https://developer.service.hmrc.gov.uk/api-documentation/docs/reference-guide#versioning>
@@ -89,8 +100,8 @@ has ua => (
 Combine the given api endpoint (for example `/hello/world`) with
 the api's base_url, returning a complete endpoint url.
 
-The supplied endpoint must be absolute - in other words it must
-begin with `/`.
+Returns a URI object, which evaluates to a plain url in string
+context.
 
 =cut
 
@@ -102,17 +113,25 @@ sub endpoint_url {
     # endpoint paramater is mandatory
     defined $endpoint or croak "endpoint is undefined";
 
-    # endpoint must be absolute
-    $endpoint =~ m|^/| or croak "endpoint is not absolute";
+    # Strip any leading slash from the endpoint, which would otherwise
+    # cause it to be interpreted as an absolute path, stripping any path
+    # component from the base_url.
+    #
+    # When constructing an endpoint url, the full base_url is used,
+    # including any path component.
+    $endpoint =~ s|^/||;
 
-    # Strip any trailing slash from base_url
-    my $rv = $self->base_url;
-    $rv =~ s|/$||;
+    return URI->new_abs($endpoint, $self->base_url);
+}
 
-    # Concatenate endpoint
-    $rv .= $endpoint;
 
-    return $rv;
+=head2 get()
+
+=cut
+
+sub get {
+
+
 }
 
 

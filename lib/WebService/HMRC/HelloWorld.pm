@@ -53,17 +53,17 @@ L<https://developer.service.hmrc.gov.uk/api-documentation/docs/api/service/api-e
 
 Inherits from L<WebService::HMRC::Request>.
 
-=head2 server_token
+=head2 auth
 
-Secret server token issued by HMRC for the application using this module. Must be defined
-to call application-restricted endpoints. 
+A WebService::HMRC::Authenticate object reference providing credentials and tokens
+requrired to access protected endpoints.
 
 =cut
 
-has server_token => (
+has auth => (
     is => 'rw',
-    isa => 'Str',
-    predicate => 'has_server_token',
+    isa => 'WebService::HMRC::Authenticate',
+    predicate => 'has_auth',
 );
 
 
@@ -107,7 +107,7 @@ sub hello_application {
 
     my $result = $self->ua->get(
         $url,
-        'Authorization' => 'Bearer ' . $self->server_token,
+        'Authorization' => 'Bearer ' . $self->auth->server_token,
     );
 
     return WebService::HMRC::Response->new(http => $result);
@@ -130,7 +130,7 @@ sub hello_user {
 
     my $result = $self->ua->get(
         $url,
-        'Authorization' => 'Bearer ' . $self->server_token,
+        'Authorization' => 'Bearer ' . $self->auth->access_token,
     );
 
     return WebService::HMRC::Response->new(http => $result);
@@ -140,17 +140,25 @@ sub hello_user {
 # PRIVATE METHODS
 
 # _require_server_token()
-# Croaks if server_token property has not been initialised.
+# Croaks if server_token is not available.
+# Returns true otherwise.
 sub _require_server_token {
     my $self = shift;
-    $self->has_server_token or croak 'HMRC server token has not been specified';
+
+    $self->has_auth
+        or croak 'authentication object has not been specified';
+
+    $self->auth->has_server_token
+        or croak 'authentication object does not contain a server token';
+
+    return 1;
 }
 
 
 
 =head1 AUTHOR
 
-Nick Prater, C<< <nick@npbroadcast.com> >>
+Nick Prater, <nick@npbroadcast.com>
 
 =head1 BUGS
 

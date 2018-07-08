@@ -6,6 +6,8 @@ use warnings;
 use Carp;
 use Moose;
 use namespace::autoclean;
+use Try::Tiny;
+use WebService::HMRC::Response;
 
 extends 'WebService::HMRC::Request';
 
@@ -26,106 +28,370 @@ our $VERSION = '0.01';
 This is part of a suite of Perl modules for interacting with the UK's HMRC
 Making Tax Digital APIs.
 
-This class represents the response from an api call.
+This class handles authentication with HMRC using OAuth2. For more detail
+see:
+L<https://developer.service.hmrc.gov.uk/api-documentation/docs/authorisation/user-restricted-endpoints>
 
 =head1 SYNOPSIS
 
-    use WebService::HMRC::HelloWorld;
-    my $hmrc = WebService::HMRC::HelloWorld->new();
+    use WebService:HMRC::Authenticate;
 
-    # Hello World endpoint requires no authorisation
-    my $hmrc_response = $hmrc->hello_world()
+    my $auth = WebService::HMRC::Authenticate->new(
+        client_id => $client_id,
+        client_secret => $client_secret,
+    );
 
-    print "success\n" if $hmrc_response->is_success();
+    # Direct user to this url to authorise our application
+    # They will be asked for Government Gateway credentials and
+    # to approve access to the specified scope for our application.
+    my $url = $auth->authorisation_url(
+        authorisation_scope => 'vat:read',
+        redirect_uri => 'urn:ietf:wg:oauth:2.0:oob',
+        state => 'session-cookie-hash-or-similar-opaque-value',
+    );
 
-    my $status_code = $hmrc_response->http->code;
-    print "api call yielded http response code $status_code\n";
+    # Once user has authorised our application, an authorisation code
+    # is generated. This is either copy/pasted back into our application
+    # by the user, or supplied via a callback uri parameter. The
+    # authorisation code is valid for 10 minutes.
 
-    my $message = $hmrc_response->data->{message};
-    print "received: $message\n";
+    # Exchange access code for an access token.
+    my $result = $auth->get_access_token(
+        access_code => $access_code,
+        redirect_uri => 'urn:ietf:wg:oauth:2.0:oob',
+    );
+    $result->is_success or warn "ERROR: ", $result->data->{message};
+
+    # Has token expired?
+    my $expired = ($auth->expires_epoch <= time);
+
+    # The token can be refreshed as long as authority hasn't been revoked
+    # for the application and was granted less than 18 months ago.
+    # Typically an access token is valid for 4 hours.
+    $auth->refresh_tokens;
+
+    # The tokens can be retained and used by another instance
+    my $new_auth = WebService::HMRC::Authenticate->new(
+        client_id => $client_id,
+        client_secret => $client_secret,
+        access_token => $access_token,
+        refresh_token => $refresh_token,
+    )
+
+    # Refreshing will then populate scope and expires_epoch properties
+    $new_auth->refresh;
+
     
 =head1 PROPERTIES
 
-=head2 data
+=head2 server_token
 
-Reference to a perl data structure representing the api call's json response.
-Usually this is a hashref, but can be an arrayref depending on the api call's
-response.
-
-This property is updated on object creation when the http property is set.
+Secret server token issued by HMRC for the application using this module. Must be defined
+to call application-restricted endpoints. 
 
 =cut
 
-has data => (
+has server_token => (
     is => 'rw',
-    isa => 'Maybe[Ref]',
-    default => undef,
+    isa => 'Str',
+    predicate => 'has_server_token',
 );
 
-=head2 http
+=head2 client_id
 
-The raw HTTP::Response object resulting from the api call. See documentation
-for L<HTTP::Response>.
+The Client ID issued by HMRC for the application using this class.
 
 =cut
 
-has http => (
-    is => 'ro',
-    isa => 'HTTP::Response',
-    required => 1,
-    trigger => \&_parse_http_response,
+has client_id => (
+    is => 'rw',
+    isa => 'Str',
+    predicate => 'has_client_id',
+);
+
+=head2 client_secret
+
+The Client Secret issued by HMRC for the application using this class.
+
+=cut
+
+has client_secret => (
+    is => 'rw',
+    isa => 'Str',
+    predicate => 'has_client_secret',
+);
+
+=head2 access_token
+
+The access token issued by HMRC. Updated automatically when a new token
+is requested using access_token() or refresh_token() methods, or can be
+set explicitly to use an existing token.
+
+Access tokens are typically valid for four hours after issue or until
+a refreshed token is requested.
+
+=cut
+
+has access_token => (
+    is => 'rw',
+    isa => 'Str',
+    predicate => 'has_access_token',
+    clearer => 'clear_access_token',
+);
+
+=head2 refresh_token
+
+The refresh token issued by HMRC. Updated automatically when a new token
+is requested using access_token() or refresh_token() methods, or can be
+set explicitly to use an existing refresh_token.
+
+Refresh tokens are typically valid for 18 months after the application was
+last authorised by the user, unless revoked, or until a new refresh token
+is requested.
+
+=cut
+
+has refresh_token => (
+    is => 'rw',
+    isa => 'Str',
+    predicate => 'has_refresh_token',
+    clearer => 'clear_refresh_token',
+);
+
+=head2 expires_epoch
+
+Expiry time of the current access_token and refresh_token specified in seconds
+since the perl epoch.
+
+=cut
+
+has expires_epoch => (
+    is => 'rw',
+    isa => 'Int',
+    clearer => 'clear_expires_epoch',
+);
+
+=head2 scope
+
+The scope of the current authorisation tokens, specific and documented for each
+of HMRC's APIs. For example 'read:vat' or 'write:employment'.
+
+Updated according the the HMRC api response when a new token is requested using
+access_token() or refresh_token() methods.
+
+=cut
+
+has scope => (
+    is => 'rw',
+    isa => 'Str',
+    clearer => 'clear_scope',
 );
 
 
 =head1 METHODS
 
-=head2 is_success()
+=head2 authorisation_url(authorisation_scope => $scope, redirect_uri => $uri, [state => $state])
 
-Returns true if the http call to the api was successful, false otherwise.
+Returns a URI object representing the url to which the a user should be
+directed to authorise this application for the specified scope. In string
+context, this return value evaluates to a fully-qualified url.
 
-Shortcut for C<<$obj->http->is_success>>
+This method accepts the following parameters:
+
+=over
+
+=item authorisation_scope
+
+Defined by the api to which access is sought.
+
+=item redirect_uri
+
+Where the user will be redirected once access is granted or denied. This must
+have been associated with the application using the HMRC developer web site.
+See:
+L<https://developer.service.hmrc.gov.uk/api-documentation/docs/reference-guide#redirect-uris>
+
+=item state
+
+Optional parameter. The value specified here is returned as a parameter to the
+redirect_uri and should be checked to ensure that the redirect is a genuine
+response to our authorisation request.
+
+=back
 
 =cut
 
-sub is_success {
+sub authorisation_url {
 
     my $self = shift;
-    return $self->http->is_success;
+    my %args = @_;
+
+    defined $args{authorisation_scope} or croak "authorisation_scope not defined";
+    defined $args{redirect_uri} or croak "redirect_uri not defined";
+    $self->has_client_id or croak 'client_id property not defined for object';
+
+    my $uri = $self->endpoint_url('/oauth/authorize');
+    my $query_params = {
+        response_type => 'code',
+        client_id => $self->client_id,
+        scope => $args{authorisation_scope},
+        redirect_uri => $args{redirect_uri}
+    };
+
+    # state is an optional parameter
+    if(defined $args{state}) {
+        $query_params->{state} = $args{state};
+    }
+
+    $uri->query_form($query_params);
+
+    return $uri;
+}
+
+
+=head2 get_access_token(access_code => $access_code, redirect_uri => $redirect_uri)
+
+Exchanges the supplied access_code for an access_token.
+
+Both client_id and client_secret object properties must be set before calling
+this method.
+
+The redirect_uri parameter must match that used when the access_code was 
+requested.
+
+Returns a WebService::HMRC::Response object.
+
+The object's scope, access_token, refresh_token and expires_epoch properties are
+updated when this method is called.
+
+See L<https://developer.service.hmrc.gov.uk/api-documentation/docs/authorisation/user-restricted-endpoints>
+for more information about response data and possible error codes.
+
+=cut
+
+sub get_access_token {
+
+    my $self = shift;
+    my %args = @_;
+
+    defined $args{authorisation_code} or croak 'authorisation_code not defined';
+    defined $args{redirect_uri} or croak 'redirect_uri not defined';
+    $self->has_client_id or croak 'client_id property not defined for object';
+    $self->has_client_secret or croak 'client_secret property not defined for object';
+
+    my $uri = $self->endpoint_url('/oauth/token');
+    my $params = {
+        grant_type => 'authorization_code',
+        client_id => $self->client_id,
+        client_secret => $self->client_secret,
+        code => $args{authorisation_code},
+        redirect_uri => $args{redirect_uri}
+    };
+    my $http_response = $self->ua->post($uri, $params);
+    my $result = WebService::HMRC::Response->new(http => $http_response);
+    $self->extract_tokens($result->data);
+
+    return $result;
+}
+
+
+=head2 refresh_tokens()
+
+Exchanges the current tokens for a new access_token
+
+The properties client_id, client_secret object properties must be set before calling
+this method.
+
+The object's scope, access_token, refresh_token and expires_epoch properties are
+updated when this method is called.
+
+Returns a WebService::HMRC::Response object. 
+
+See L<https://developer.service.hmrc.gov.uk/api-documentation/docs/authorisation/user-restricted-endpoints>
+for more information about response data and possible error codes.
+
+=cut
+
+sub refresh_tokens {
+
+    my $self = shift;
+    my %args = @_;
+
+    $self->has_refresh_token or croak 'refresh_token not defined for object';
+    $self->has_client_id or croak 'client_id property not defined for object';
+    $self->has_client_secret or croak 'client_secret not defined for object';
+
+    my $uri = $self->endpoint_url('/oauth/token');
+    my $params = {
+        grant_type => 'refresh_token',
+        client_id => $self->client_id,
+        client_secret => $self->client_secret,
+        refresh_token => $self->refresh_token,
+    };
+    my $http_response = $self->ua->post($uri, $params);
+    my $result = WebService::HMRC::Response->new(http => $http_response);
+    $self->extract_tokens($result->data);
+
+    return $result;
+}
+
+
+=head2 extract_tokens($hashref)
+
+Accepts a hashref representing the hmrc response to a token request, updating
+the access_token, refresh_token and expires_epoch properties of this class.
+
+Returns true on success.
+
+On error, clears the access_token, refresh_token, scope and expires_epoch
+properties and returns false.
+
+A typical token hashref comprises:
+
+    {
+      'scope'         => 'read:vat',  # API specific
+      'token_type'    => 'bearer',    # Always 'bearer'
+      'expires_in'    => 14400,       # seconds before expiration
+      'refresh_token' => '806d848e5e78fee92c9a38e6b7a3',
+      'access_token'  => '7d46efbcbff7892295894e21f940d118'
+    }
+
+The token will be rejected if token_type is not 'bearer'.
+
+=cut
+
+sub extract_tokens {
+
+    my $self = shift;
+    my $token = shift;
+
+    return try {
+        $token->{token_type} eq 'bearer' or croak 'token type value is not `bearer`';
+        $token->{expires_in} =~ m/^\d+$/ or croak 'expires_in value is not numeric';
+
+        $self->expires_epoch(time + $token->{expires_in});
+        $self->access_token($token->{access_token});
+        $self->refresh_token($token->{refresh_token});
+        $self->scope($token->{scope});
+        return 1;
+    }
+    catch {
+        carp "Error parsing token: $_\n";
+        $self->clear_scope;
+        $self->clear_expires_epoch;
+        $self->clear_access_token;
+        $self->clear_refresh_token;
+        return 0;
+    };
 }
 
 
 # PRIVATE METHODS
 
-# _parse_http_response($http_response)
-#
-# Update this class's `data` property to reflect the json content of
-# the supplied HTTP::Response object. Returns a reference to the Perl data
-# structure representing the json response.
-
-sub _parse_http_response {
-    my $self = shift;
-    my $http = shift;
-
-    # Under normal conditions, the api always returns json content
-    # even for error responses. But unusual error conditions could
-    # return content that is invalid json, which will cause the parser
-    # to croak. We therefore wrap it in a `try` block.
-    my $data = try {
-        return decode_json($http->decoded_content);
-    }
-    catch {
-        carp "unable to parse api response as json: $_";
-        return undef;
-    };
-
-    $self->data($data);
-    return $data;
-}
-
 
 =head1 AUTHOR
 
-Nick Prater, C<< <nick@npbroadcast.com> >>
+Nick Prater <nick@npbroadcast.com>
 
 =head1 BUGS
 
@@ -205,7 +471,6 @@ YOUR LOCAL LAW. UNLESS REQUIRED BY LAW, NO COPYRIGHT HOLDER OR
 CONTRIBUTOR WILL BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, OR
 CONSEQUENTIAL DAMAGES ARISING IN ANY WAY OUT OF THE USE OF THE PACKAGE,
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
 
 =cut
 

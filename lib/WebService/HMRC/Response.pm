@@ -49,23 +49,26 @@ This class represents the response from an api call.
 
 =head2 data
 
-Reference to a perl data structure representing the api call's json response.
-Usually this is a hashref, but can be an arrayref depending on the api call's
-response.
+Reference to a perl hash representing an api call's json response.
 
 This property is updated on object creation when the http property is set.
+
+If an api call returns no valid json response, this property is
+populated with a dummy response, in the same format as the standard
+HRMC error response, with code 'INVALID_RESPONSE'. This facilitates
+consistent error parsing by the calling application.
 
 =cut
 
 has data => (
     is => 'rw',
-    isa => 'Maybe[Ref]',
+    isa => 'Maybe[HashRef]',
     default => undef,
 );
 
 =head2 http
 
-The raw HTTP::Response object resulting from the api call. See documentation
+The raw HTTP::Response object resulting from an api call. See documentation
 for L<HTTP::Response>.
 
 =cut
@@ -108,7 +111,15 @@ sub _parse_http_response {
     }
     catch {
         carp "unable to parse api response as json: $_";
-        return undef;
+
+        # Create dummy error message with same format as HMRC
+        # error response to facilitate consistent error parsing by
+        # calling application.
+        return {
+            code    => 'INVALID_RESPONSE',
+            message => 'No valid JSON data received from api call. '.
+                       $http->status_line,
+        };
     };
 
     $self->data($data);
@@ -118,7 +129,7 @@ sub _parse_http_response {
 
 =head1 AUTHOR
 
-Nick Prater, C<< <nick@npbroadcast.com> >>
+Nick Prater <nick@npbroadcast.com>
 
 =head1 BUGS
 
@@ -154,9 +165,6 @@ L<http://cpanratings.perl.org/d/WebService-HMRC-HelloWorld>
 L<http://search.cpan.org/dist/WebService-HMRC-HelloWorld/>
 
 =back
-
-
-=head1 ACKNOWLEDGEMENTS
 
 
 =head1 LICENSE AND COPYRIGHT
