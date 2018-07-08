@@ -1,8 +1,6 @@
 package WebService::HMRC::Authenticate;
 
 use 5.006;
-use strict;
-use warnings;
 use Carp;
 use Moose;
 use namespace::autoclean;
