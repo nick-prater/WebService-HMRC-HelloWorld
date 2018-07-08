@@ -1,13 +1,10 @@
 package WebService::HMRC::HelloWorld;
 
 use 5.006;
-use warnings;
-use strict;
 use Moose;
 use namespace::autoclean;
 
 extends 'WebService::HMRC::Request';
-
 
 =head1 NAME
 
@@ -120,9 +117,6 @@ Please report any bugs or feature requests to C<bug-webservice-hmrc-helloworld a
 the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=WebService-HMRC-HelloWorld>.  I will be notified, and then you'll
 automatically be notified of progress on your bug as I make changes.
 
-
-
-
 =head1 SUPPORT
 
 You can find documentation for this module with the perldoc command.
@@ -152,9 +146,10 @@ L<http://search.cpan.org/dist/WebService-HMRC-HelloWorld/>
 
 =back
 
-
 =head1 ACKNOWLEDGEMENTS
 
+This module was originally developed for use as part of the
+L<LedgerSMB|https://ledgersmb.org/> open source accounting software.
 
 =head1 LICENSE AND COPYRIGHT
 
