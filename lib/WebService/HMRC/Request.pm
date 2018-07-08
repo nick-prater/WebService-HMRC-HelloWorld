@@ -8,12 +8,13 @@ use LWP::UserAgent;
 use Moose;
 use namespace::autoclean;
 use URI;
+use WebService::HMRC::Authenticate;
 use WebService::HMRC::Response;
 
 
 =head1 NAME
 
-WebService::HMRC::Request - Base class for using the UK HMRC HelloWorld API
+WebService::HMRC::Request - Base class for accessing the UK HMRC MTD API
 
 =head1 VERSION
 
@@ -26,11 +27,12 @@ our $VERSION = '0.01';
 =head1 DESCRIPTION
 
 This is a base class for making requests to the UK's HMRC Making Tax Digital
-API. It is usually inherited by other higher-level classes rather than being
+API. It is usually inherited by other higher-level classes, but can be
 used directly.
 
-This class provides a LWP::UserAgent with appropriate headers set and a method
-for constructing api endpoint urls.
+This class provides methods for calling api endpoints, mapping their response
+into a standard class. It also provides a LWP::UserAgent with appropriate
+headers set and a lower-level method for constructing api endpoint urls.
 
 =head1 SYNOPSIS
 
@@ -40,16 +42,35 @@ for constructing api endpoint urls.
         api_version => '1.0',
     );
 
-    my $url = $r->endpoint_url('/hello/world');
-    my $http_response = $r->ua->get($url);
+    # open endpoint
+    my $response = $r->get_endpoint(
+        endpoint => '/hello/world',
+    );
+    print $response->data->{message} if $response->is_success;
 
+    # application-restricted endpoint
+    $r->auth->server_token('MY_SERVER_TOKEN');
+    my $response = $r->get_endpoint(
+        endpoint => '/hello/application',
+        auth_type => 'application',
+    );
+    print $response->data->{message} if $response->is_success;
+   
+    # user-restricted endpoint
+    $r->auth->access_token('MY_ACCESS_TOKEN');
+    my $response = $r->get_endpoint(
+        endpoint => '/hello/user',
+        auth_type => 'application',
+    );
+    print $response->data->{message} if $response->is_success;
     
 =head1 PROPERTIES
 
 =head2 auth
 
 A WebService::HMRC::Authenticate object reference providing credentials and tokens
-required to access protected endpoints.
+required to access protected endpoints. If not specified, an empty
+WebService::HMRC::Authenticate will be created by default.
 
 =cut
 
@@ -57,6 +78,8 @@ has auth => (
     is => 'rw',
     isa => 'WebService::HMRC::Authenticate',
     predicate => 'has_auth',
+    lazy => 1,
+    builder => '_build_auth',
 );
 
 =head2 base_url
@@ -93,7 +116,10 @@ has api_version => (
 
 =head2 ua
 
-Read-only property representing a LWP::UserAgent object used to perform the api calls.
+Read-only property representing a LWP::UserAgent object used to perform the
+api calls. This will be created by default, but an alternative LWP::UserAgent
+object may be provided instead, providing an appropriate default 'Accept'
+header is configured.
 
 =cut
 
@@ -103,7 +129,6 @@ has ua => (
     lazy => 1,
     builder => '_build_ua',
 );
-
 
 
 =head1 METHODS
@@ -138,13 +163,63 @@ sub endpoint_url {
 }
 
 
-=head2 get()
+=head2 get_endpoint(endpoint => $endpoint, [auth_type => $auth_type])
+
+Retrieve a response from an HMRC Making Tax Digital api endpoint, using
+http get. Authorisation headers appropriate to the specified authorisation
+type are added to the request.
+
+Returns a WebService::HMRC::Response object reference.
+
+Parameters:
+
+=over
+
+=item url
+
+Mandatory parameter specifying the endpoint to be accessed, for example
+'/hello/world'. Combined with base_url to build a fully-qualified url.
+
+=item auth_type
+
+Optional parameter. If specified must be one of 'open', 'user', or
+'application', corresponding to the different types of authentication
+used by HMRC MTD apis. If not specified, or undef, defaults to 'open'.
+
+=back
 
 =cut
 
-sub get {
+sub get_endpoint {
 
+    my $self = shift;
+    my %args = @_;
+    $args{auth_type} ||= 'open';
+    my $url = $self->endpoint_url($args{endpoint});
+    my @headers;
 
+    if($args{auth_type} eq 'application') {
+        $self->auth->has_server_token
+            or croak "auth->server_token is not defined";
+        push @headers, 'Authorization' => 'Bearer ' . $self->auth->server_token;
+    }
+    elsif($args{auth_type} eq 'user') {
+        $self->auth->has_access_token
+            or croak "auth->access_token is not defined";
+        push @headers, 'Authorization' => 'Bearer ' . $self->auth->access_token;
+    }
+
+    my $result = $self->ua->get(
+        $url,
+        @headers
+    );
+    my $response = WebService::HMRC::Response->new(http => $result);
+
+    unless($response->is_success) {
+        $self->_display_response_errors($response);
+    }
+
+    return $response;
 }
 
 
@@ -152,7 +227,8 @@ sub get {
 
 # _build_ua()
 # Returns a LWP::UserAgent object with a default `Accept` header
-# defined. Called as a Moose lazy builder.
+# defined, specifying the api version in use.
+# Called as a Moose lazy builder.
 
 sub _build_ua {
     my $self = shift;
@@ -163,19 +239,44 @@ sub _build_ua {
     return $ua;
 }
 
+# _build_auth()
+# Returns an empty WebService::HMRC::Authenticate object.
+# Called as a Moose lazy builder.
+
+sub _build_auth {
+    my $self = shift;
+    return WebService::HMRC::Authenticate->new();
+}
+
+# _display_response_errors($response)
+# Given a WebService::HMRC::Response object, carp an error
+# message including the http status line and any 'message'
+# or 'code' values within the response data. Returns nothing.
+
+sub _display_response_errors {
+
+    my $self = shift;
+    my $response = shift;
+
+    carp "Error calling api endpoint: " . $response->http->status_line;
+    carp "code: " . $response->data->{code} if $response->data->{code};
+    carp "message: " . $response->data->{message} if $response->data->{message};
+   
+    return;
+}
+
 
 =head1 AUTHOR
 
-Nick Prater, C<< <nick@npbroadcast.com> >>
+Nick Prater <nick@npbroadcast.com>
 
 =head1 BUGS
 
-Please report any bugs or feature requests to C<bug-webservice-hmrc-helloworld at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=WebService-HMRC-HelloWorld>.  I will be notified, and then you'll
-automatically be notified of progress on your bug as I make changes.
-
-
-
+Please report any bugs or feature requests to
+C<bug-webservice-hmrc-helloworld at rt.cpan.org>, or through the web interface
+at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=WebService-HMRC-HelloWorld>.
+I will be notified, and then you'll automatically be notified of progress on
+your bug as I make changes.
 
 =head1 SUPPORT
 
@@ -206,9 +307,10 @@ L<http://search.cpan.org/dist/WebService-HMRC-HelloWorld/>
 
 =back
 
-
 =head1 ACKNOWLEDGEMENTS
 
+This module was originally developed for use as part of the
+L<LedgerSMB|https://ledgersmb.org/> open source accounting software.
 
 =head1 LICENSE AND COPYRIGHT
 
@@ -249,7 +351,6 @@ YOUR LOCAL LAW. UNLESS REQUIRED BY LAW, NO COPYRIGHT HOLDER OR
 CONTRIBUTOR WILL BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, OR
 CONSEQUENTIAL DAMAGES ARISING IN ANY WAY OUT OF THE USE OF THE PACKAGE,
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
 
 =cut
 

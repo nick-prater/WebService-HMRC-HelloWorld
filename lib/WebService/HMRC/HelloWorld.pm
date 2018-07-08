@@ -87,16 +87,11 @@ Returns a WebService::HMRC::Response object.
 sub hello_application {
 
     my $self = shift;
-    $self->_require_server_token;
 
-    my $url = $self->endpoint_url('/hello/application');
-
-    my $result = $self->ua->get(
-        $url,
-        'Authorization' => 'Bearer ' . $self->auth->server_token,
+    return $self->get_endpoint(
+        endpoint => '/hello/application',
+        auth_type => 'application',
     );
-
-    return WebService::HMRC::Response->new(http => $result);
 }
 
 
@@ -111,7 +106,6 @@ Returns a WebService::HMRC::Response object.
 sub hello_user {
 
     my $self = shift;
-
     my $url = $self->endpoint_url('/hello/user');
 
     my $result = $self->ua->get(

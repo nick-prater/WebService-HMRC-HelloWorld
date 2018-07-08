@@ -150,7 +150,7 @@ SKIP: {
     #       (code received from authorisation_url page after approval)
     #   * the HMRC sandbox test api endpoints must be functioning
 
-    my $skip_count = 14;
+    my $skip_count = 26;
     my $client_id = $ENV{HMRC_CLIENT_ID} or skip (
         'Skipping tests which call /oauth/token endpoint as environment variable HMRC_CLIENT_ID is not set',
         $skip_count,
