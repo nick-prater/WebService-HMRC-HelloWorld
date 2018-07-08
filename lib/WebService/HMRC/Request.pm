@@ -1,8 +1,6 @@
 package WebService::HMRC::Request;
 
 use 5.006;
-use strict;
-use warnings;
 use Carp;
 use LWP::UserAgent;
 use Moose;
