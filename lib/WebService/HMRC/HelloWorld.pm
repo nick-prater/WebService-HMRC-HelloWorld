@@ -35,13 +35,19 @@ L<https://developer.service.hmrc.gov.uk/api-documentation/docs/api/service/api-e
 
     # Hello World endpoint requires no authorisation
     my $result = $hmrc->hello_world()
-    print "$result->{response}->{message}\n";
+    print "$result->{response}->{message}\n" if $result->is_success;
 
     # Hello Application endpoint requires a server token
-    $hmrc->server_token( $my_server_token );
+    $hmrc->auth->server_token( $my_server_token );
     $result = $hmrc->hello_application();
-    print "$result->{response}->{message}\n";
+    print "$result->{response}->{message}\n" if $result->is_success;
+
+    # Hello User endpoint requires an access token
+    $hmrc->auth->access_token( $my_access_token );
+    $result = $hmrc->hello_user();
+    print "$result->{response}->{message}\n" if $result->is_success;
     
+   
 =head1 PROPERTIES
 
 Inherits from L<WebService::HMRC::Request>.
