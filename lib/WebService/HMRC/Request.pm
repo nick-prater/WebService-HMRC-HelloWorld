@@ -46,6 +46,19 @@ for constructing api endpoint urls.
     
 =head1 PROPERTIES
 
+=head2 auth
+
+A WebService::HMRC::Authenticate object reference providing credentials and tokens
+required to access protected endpoints.
+
+=cut
+
+has auth => (
+    is => 'rw',
+    isa => 'WebService::HMRC::Authenticate',
+    predicate => 'has_auth',
+);
+
 =head2 base_url
 
 Base url used for calls to the HMRC "Making Tax Digital" API. Defaults to test

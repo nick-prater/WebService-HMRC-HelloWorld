@@ -53,20 +53,6 @@ L<https://developer.service.hmrc.gov.uk/api-documentation/docs/api/service/api-e
 
 Inherits from L<WebService::HMRC::Request>.
 
-=head2 auth
-
-A WebService::HMRC::Authenticate object reference providing credentials and tokens
-requrired to access protected endpoints.
-
-=cut
-
-has auth => (
-    is => 'rw',
-    isa => 'WebService::HMRC::Authenticate',
-    predicate => 'has_auth',
-);
-
-
 =head1 METHODS
 
 Inherits from L<WebService::HMRC::Request>.
