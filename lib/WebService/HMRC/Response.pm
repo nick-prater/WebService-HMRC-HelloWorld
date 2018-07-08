@@ -1,8 +1,6 @@
 package WebService::HMRC::Response;
 
 use 5.006;
-use strict;
-use warnings;
 use Carp;
 use JSON::MaybeXS qw(decode_json);
 use Moose;
@@ -166,6 +164,10 @@ L<http://search.cpan.org/dist/WebService-HMRC-HelloWorld/>
 
 =back
 
+=head1 ACKNOWLEDGEMENTS
+
+This module was originally developed for use as part of the
+L<LedgerSMB|https://ledgersmb.org/> open source accounting software.
 
 =head1 LICENSE AND COPYRIGHT
 
