@@ -3,12 +3,8 @@ package WebService::HMRC::HelloWorld;
 use 5.006;
 use warnings;
 use strict;
-use Carp;
-use LWP::UserAgent;
 use Moose;
 use namespace::autoclean;
-use Try::Tiny;
-use WebService::HMRC::Response;
 
 extends 'WebService::HMRC::Request';
 
@@ -68,10 +64,10 @@ Returns a WebService::HMRC::Response object.
 sub hello_world {
 
     my $self = shift;
-    my $url = $self->endpoint_url('/hello/world');
-    my $result = $self->ua->get($url);
 
-    return WebService::HMRC::Response->new(http => $result);
+    return $self->get_endpoint(
+        endpoint => '/hello/world',
+    );
 }
 
 
@@ -106,34 +102,12 @@ Returns a WebService::HMRC::Response object.
 sub hello_user {
 
     my $self = shift;
-    my $url = $self->endpoint_url('/hello/user');
 
-    my $result = $self->ua->get(
-        $url,
-        'Authorization' => 'Bearer ' . $self->auth->access_token,
-    );
-
-    return WebService::HMRC::Response->new(http => $result);
+    return $self->get_endpoint(
+        endpoint => '/hello/user',
+        auth_type => 'user',
+    )
 }
-
-
-# PRIVATE METHODS
-
-# _require_server_token()
-# Croaks if server_token is not available.
-# Returns true otherwise.
-sub _require_server_token {
-    my $self = shift;
-
-    $self->has_auth
-        or croak 'authentication object has not been specified';
-
-    $self->auth->has_server_token
-        or croak 'authentication object does not contain a server token';
-
-    return 1;
-}
-
 
 
 =head1 AUTHOR
