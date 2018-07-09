@@ -2,6 +2,7 @@ package WebService::HMRC::Authenticate;
 
 use 5.006;
 use Carp;
+use List::Util 1.33;
 use Moose;
 use namespace::autoclean;
 use Try::Tiny;
@@ -43,7 +44,7 @@ L<https://developer.service.hmrc.gov.uk/api-documentation/docs/authorisation/use
     # They will be asked for Government Gateway credentials and
     # to approve access to the specified scope for our application.
     my $url = $auth->authorisation_url(
-        authorisation_scope => 'vat:read',
+        scopes => ['read:vat', 'write:vat'],
         redirect_uri => 'urn:ietf:wg:oauth:2.0:oob',
         state => 'session-cookie-hash-or-similar-opaque-value',
     );
@@ -169,38 +170,42 @@ has expires_epoch => (
     clearer => 'clear_expires_epoch',
 );
 
-=head2 scope
+=head2 scopes
 
-The scope of the current authorisation tokens, specific and documented for each
-of HMRC's APIs. For example 'read:vat' or 'write:employment'.
+Arrayref containing a list of scopes for which the current authorisation
+tokens are valid. Scopes are specific and documented for each of HMRC's APIs.
+For example 'read:vat' or 'write:employment'.
 
 Updated according the the HMRC api response when a new token is requested using
 access_token() or refresh_token() methods.
 
 =cut
 
-has scope => (
+has scopes => (
     is => 'rw',
-    isa => 'Str',
-    clearer => 'clear_scope',
+    isa => 'ArrayRef',
+    predicate => 'has_scopes',
+    clearer => 'clear_scopes',
 );
-
 
 =head1 METHODS
 
-=head2 authorisation_url(authorisation_scope => $scope, redirect_uri => $uri, [state => $state])
+=head2 authorisation_url(scopes => \@scopes, redirect_uri => $uri, [state => $state])
 
 Returns a URI object representing the url to which the a user should be
-directed to authorise this application for the specified scope. In string
+directed to authorise this application for the specified scopes. In string
 context, this return value evaluates to a fully-qualified url.
 
-This method accepts the following parameters:
+=head3 Parameters:
 
 =over
 
-=item authorisation_scope
+=item scopes
 
-Defined by the api to which access is sought.
+Reference to an array containing the scopes to which access is sought. The scope
+names and their application are defined in the documentation for each api.
+
+For example: ['read:employment', 'read:vat', 'write:vat']
 
 =item redirect_uri
 
@@ -224,15 +229,16 @@ sub authorisation_url {
     my $self = shift;
     my %args = @_;
 
-    defined $args{authorisation_scope} or croak "authorisation_scope not defined";
+    defined $args{scopes} or croak 'scopes not defined';
     defined $args{redirect_uri} or croak "redirect_uri not defined";
     $self->has_client_id or croak 'client_id property not defined for object';
 
     my $uri = $self->endpoint_url('/oauth/authorize');
+    my $scope_string = join(' ', @{$args{scopes}});
     my $query_params = {
         response_type => 'code',
         client_id => $self->client_id,
-        scope => $args{authorisation_scope},
+        scope => $scope_string,
         redirect_uri => $args{redirect_uri}
     };
 
@@ -259,7 +265,7 @@ requested.
 
 Returns a WebService::HMRC::Response object.
 
-The object's scope, access_token, refresh_token and expires_epoch properties are
+The object's scopes, access_token, refresh_token and expires_epoch properties are
 updated when this method is called.
 
 See L<https://developer.service.hmrc.gov.uk/api-documentation/docs/authorisation/user-restricted-endpoints>
@@ -300,7 +306,7 @@ Exchanges the current tokens for a new access_token
 The properties client_id, client_secret object properties must be set before calling
 this method.
 
-The object's scope, access_token, refresh_token and expires_epoch properties are
+The object's scopes, access_token, refresh_token and expires_epoch properties are
 updated when this method is called.
 
 Returns a WebService::HMRC::Response object. 
@@ -341,15 +347,15 @@ the access_token, refresh_token and expires_epoch properties of this class.
 
 Returns true on success.
 
-On error, clears the access_token, refresh_token, scope and expires_epoch
+On error, clears the access_token, refresh_token, scopes and expires_epoch
 properties and returns false.
 
 A typical token hashref comprises:
 
     {
-      'scope'         => 'read:vat',  # API specific
-      'token_type'    => 'bearer',    # Always 'bearer'
-      'expires_in'    => 14400,       # seconds before expiration
+      'scope'         => 'read:vat read:employment',# API specific
+      'token_type'    => 'bearer',                  # Always 'bearer'
+      'expires_in'    => 14400,                     # seconds until expiration
       'refresh_token' => '806d848e5e78fee92c9a38e6b7a3',
       'access_token'  => '7d46efbcbff7892295894e21f940d118'
     }
@@ -370,21 +376,68 @@ sub extract_tokens {
         $self->expires_epoch(time + $token->{expires_in});
         $self->access_token($token->{access_token});
         $self->refresh_token($token->{refresh_token});
-        $self->scope($token->{scope});
+        $self->scopes( $self->split_scope_string($token->{scope}) );
         return 1;
     }
     catch {
         carp "Error parsing token: $_\n";
-        $self->clear_scope;
         $self->clear_expires_epoch;
         $self->clear_access_token;
         $self->clear_refresh_token;
+        $self->clear_scopes;
         return 0;
     };
 }
 
 
-# PRIVATE METHODS
+=head2 split_scope_string($string)
+
+Given a string containing space-delimited authorisation scopes
+(e.g. 'read:vat write:employment write_vat'), split into an array
+of individual scope names.
+
+Returns an array reference, or undef if the input is undefined.
+
+=cut
+
+sub split_scope_string {
+
+    my $self = shift;
+    my $string = shift;
+
+    defined $string or croak "scopes text string is unefined";
+
+    my @scopes = split / /, $string;
+    $self->scopes(\@scopes);
+
+    return \@scopes;
+}
+
+
+=head2 has_scope($scope)
+
+Returns true if the current authorisation tokens are associated with the
+specified scope.
+
+The scope of the current tokens is only known (and this method is therefore
+only meaningful) after a call to `get_access_token()` or `refresh_tokens()`,
+unless the scopes property has been explicitly initialised.
+
+If the scope of the current tokens has not been initialised, this method will
+croak.
+
+=cut
+
+sub has_scope {
+
+    my $self = shift;
+    my $scope = shift;
+
+    $self->has_scopes
+        or croak 'Token scopes are undetermined. Try calling refresh() method before testing scopes';
+
+    return List::Util::any {$_ eq $scope} @{$self->scopes};
+}
 
 
 =head1 AUTHOR

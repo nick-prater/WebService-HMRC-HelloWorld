@@ -7,7 +7,7 @@ use Test::Exception;
 use WebService::HMRC::Authenticate;
 use LWP::UserAgent;
 
-plan tests => 52;
+plan tests => 54;
 
 my ($ws, $uri, $token);
 
@@ -20,7 +20,7 @@ isa_ok($ws, 'WebService::HMRC::Authenticate', 'WebService::HMRC::Authenticate ob
 # Authorisation_url method should fail without a client_id being specified
 dies_ok {
     $ws->authorisation_url(
-        authorisation_scope => 'hello',
+        scopes => ['hello'],
         redirect_uri => 'http://localhost/',
     )
 } 'authorisation_uri method dies without client_id';
@@ -38,27 +38,27 @@ dies_ok {
     $ws->authorisation_url(
         redirect_uri => 'http://localhost/'
     )
-} 'authorisation_uri method dies without authorisation_scope parameter';
+} 'authorisation_uri method dies without scopes parameter';
 
 
 # Must specify a redirect_uri
 dies_ok {
     $ws->authorisation_uri(
-        authorisation_scope => 'hello'
+        scopes => ['hello']
     )
 } 'authorisation_url method dies without redirect_uri parameter';
 
 
-# Generates a URI with authorisation_scope and redirect
+# Generates a URI with scopes and redirect
 $uri = $ws->authorisation_url(
-    authorisation_scope => 'hello',
+    scopes => ['hello'],
     redirect_uri => 'http://localhost/',
 );
 isa_ok($uri, 'URI', 'authorisation_url method returns URI given scope and redirect parameters');
 
-# Generates a URI with authorisation_scope and redirect
+# Generates a URI with scopes and redirect
 $uri = $ws->authorisation_url(
-    authorisation_scope => 'hello',
+    scopes => ['hello', 'scope2'],
     redirect_uri => 'http://localhost/',
     state => '%&;?' # characters which need encoding
 );
@@ -67,19 +67,21 @@ like($uri, qr|^https://test-api.service.hmrc.gov.uk/oauth/authorize\?|, 'authori
 like($uri, qr|[&?]client_id=FAKE_CLIENT_ID|, 'authorisation_url generates correct client_id query');
 like($uri, qr|[&?]redirect_uri=http%3A%2F%2Flocalhost%2F|, 'authorisation_url generates correct redirect_uri query');
 like($uri, qr|[&?]response_type=code|, 'authorisation_url generates correct response_type query');
-like($uri, qr|[&?]scope=hello|, 'authorisation_url generates correct scope query');
+like($uri, qr|[&?]scope=hello\+scope2|, 'authorisation_url generates correct scope query');
 like($uri, qr|[&?]state=%25%26%3B%3F|, 'authorisation_url generates correct state query');
 
 
 # Test extract_tokens method with valid data
 ok($ws->extract_tokens({
-    scope => 'TEST_SCOPE',
+    scope => 'TEST_SCOPE ANOTHER_SCOPE',
     access_token => 'ACCESS_TOKEN',
     refresh_token => 'REFRESH_TOKEN',
     token_type => 'bearer',
     expires_in => 1000,
 }), 'extract_tokens method returns true with valid data');
-is($ws->scope, 'TEST_SCOPE', 'extract_tokens updates scope property');
+ok($ws->has_scope('TEST_SCOPE'), 'extract_tokens yields TEST_SCOPE scope');
+ok($ws->has_scope('ANOTHER_SCOPE'), 'extract_tokens yields ANOTHER_SCOPE scope');
+is(scalar @{$ws->scopes}, 2, 'scopes property contains 2 scopes');
 is($ws->access_token, 'ACCESS_TOKEN', 'extract_tokens updates access_token property');
 is($ws->refresh_token, 'REFRESH_TOKEN', 'extract_tokens updates refresh_token property');
 is(int(($ws->expires_epoch - time - 1000) / 10), 0, 'extract_tokens updates expires_epoch property within 10 seconds');
@@ -93,7 +95,7 @@ ok(!$ws->extract_tokens({
     token_type => '!!--INVALID--!!',
     expires_in => 1000,
 }), 'extract_tokens method returns false with invalid data');
-is($ws->scope, undef, 'extract_tokens clears scope property on invalid data');
+is($ws->scopes, undef, 'extract_tokens clears scopes property on invalid data');
 is($ws->access_token, undef, 'extract_tokens clears access_token property on invalid data');
 is($ws->refresh_token, undef, 'extract_tokens clears refresh_token property on invalid data');
 is($ws->expires_epoch, undef, 'extract_tokens clears expires_epoch property on invalid data');
@@ -122,7 +124,7 @@ SKIP: {
     );
 
     $uri = $ws->authorisation_url(
-        authorisation_scope => 'hello',
+        scopes => ['hello'],
         redirect_uri => 'urn:ietf:wg:oauth:2.0:oob',
         state => 'taLRXDsK2aWY' # fixed value for deterministic testing
     );
@@ -194,7 +196,7 @@ SKIP: {
     # Have properties been updated?
     is($ws->access_token, $token->data->{access_token}, 'access_token property updated');
     is($ws->refresh_token, $token->data->{refresh_token}, 'refresh_token property updated');
-    is($ws->scope, $token->data->{scope}, 'scope property updated');
+    is(join(" ", @{$ws->scopes}), $token->data->{scope}, 'scope property updated');
     is(int((time + $token->data->{expires_in} - $ws->{expires_epoch}) / 10), 0, 'expires epoch updated correctly (within 10 seconds)');
 
 
@@ -212,7 +214,7 @@ SKIP: {
     # Have properties been updated?
     is($ws->access_token, $refreshed_tokens->data->{access_token}, 'refreshed access_token property updated');
     is($ws->refresh_token, $refreshed_tokens->data->{refresh_token}, 'refreshed refresh_token property updated');
-    is($ws->scope, $refreshed_tokens->data->{scope}, 'refreshed scope property updated');
+    is(join(" ", @{$ws->scopes}), $refreshed_tokens->data->{scope}, 'refreshed scope property updated');
     is(int((time + $refreshed_tokens->data->{expires_in} - $ws->{expires_epoch}) / 10), 0, 'expires epoch updated correctly (within 10 seconds)');
 
     # Are tokens different?
