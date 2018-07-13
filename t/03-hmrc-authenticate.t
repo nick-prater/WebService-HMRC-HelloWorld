@@ -19,49 +19,49 @@ isa_ok($ws, 'WebService::HMRC::Authenticate', 'WebService::HMRC::Authenticate ob
 
 # Authorisation_url method should fail without a client_id being specified
 dies_ok {
-    $ws->authorisation_url(
+    $ws->authorisation_url({
         scopes => ['hello'],
         redirect_uri => 'http://localhost/',
-    )
+    })
 } 'authorisation_uri method dies without client_id';
 
 # Instantiate object with specified parameters
-$ws = WebService::HMRC::Authenticate->new(
+$ws = WebService::HMRC::Authenticate->new({
     client_id => 'FAKE_CLIENT_ID',
     client_secret => 'FAKE_CLIENT_SECRET',
-);
+});
 isa_ok($ws, 'WebService::HMRC::Authenticate', 'WebService::HMRC::Authenticate object created with parameters');
 
 
 # Must specify an authorisation scope to generate an authorisation_url
 dies_ok {
-    $ws->authorisation_url(
+    $ws->authorisation_url({
         redirect_uri => 'http://localhost/'
-    )
+    })
 } 'authorisation_uri method dies without scopes parameter';
 
 
 # Must specify a redirect_uri
 dies_ok {
-    $ws->authorisation_uri(
+    $ws->authorisation_uri({
         scopes => ['hello']
-    )
+    })
 } 'authorisation_url method dies without redirect_uri parameter';
 
 
 # Generates a URI with scopes and redirect
-$uri = $ws->authorisation_url(
+$uri = $ws->authorisation_url({
     scopes => ['hello'],
     redirect_uri => 'http://localhost/',
-);
+});
 isa_ok($uri, 'URI', 'authorisation_url method returns URI given scope and redirect parameters');
 
 # Generates a URI with scopes and redirect
-$uri = $ws->authorisation_url(
+$uri = $ws->authorisation_url({
     scopes => ['hello', 'scope2'],
     redirect_uri => 'http://localhost/',
     state => '%&;?' # characters which need encoding
-);
+});
 isa_ok($uri, 'URI', 'authorisation_url method returns URI given scope, redirect and state parameters');
 like($uri, qr|^https://test-api.service.hmrc.gov.uk/oauth/authorize\?|, 'authorisation_url method generates correct scheme/path');
 like($uri, qr|[&?]client_id=FAKE_CLIENT_ID|, 'authorisation_url generates correct client_id query');
@@ -119,15 +119,15 @@ SKIP: {
         3,
     );
 
-    $ws = WebService::HMRC::Authenticate->new(
+    $ws = WebService::HMRC::Authenticate->new({
         client_id => $client_id,
-    );
+    });
 
-    $uri = $ws->authorisation_url(
+    $uri = $ws->authorisation_url({
         scopes => ['hello'],
         redirect_uri => 'urn:ietf:wg:oauth:2.0:oob',
         state => 'taLRXDsK2aWY' # fixed value for deterministic testing
-    );
+    });
     isa_ok($uri, 'URI', 'authorisation_url method returns URI for test of /oauth/authorize endpoint');
 
     # Output url - tester may wish to open this manually to generate
@@ -167,20 +167,20 @@ SKIP: {
     );
 
     isa_ok(
-        $ws = WebService::HMRC::Authenticate->new(
+        $ws = WebService::HMRC::Authenticate->new({
             client_id => $client_id,
             client_secret => $client_secret,
-        ),
+        }),
         'WebService::HMRC::Authenticate',
         'created object to test get_access_token method'
     );
 
     # Get Access Token
     isa_ok(
-        $token = $ws->get_access_token(
+        $token = $ws->get_access_token({
             redirect_uri => 'urn:ietf:wg:oauth:2.0:oob',
             authorisation_code => $authorisation_code,
-        ),
+        }),
         'WebService::HMRC::Response',
         'get_access_token method returned WebService::HMRC::Response object'
     );

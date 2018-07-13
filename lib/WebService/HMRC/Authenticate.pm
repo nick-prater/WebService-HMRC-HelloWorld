@@ -31,34 +31,37 @@ This class handles authentication with HMRC using OAuth2. For more detail
 see:
 L<https://developer.service.hmrc.gov.uk/api-documentation/docs/authorisation/user-restricted-endpoints>
 
+To use this module, an application must first be registered with HMRC, who
+will issue client and application credentials.
+
 =head1 SYNOPSIS
 
     use WebService:HMRC::Authenticate;
 
-    my $auth = WebService::HMRC::Authenticate->new(
+    my $auth = WebService::HMRC::Authenticate->new({
         client_id => $client_id,
         client_secret => $client_secret,
-    );
+    });
 
     # Direct user to this url to authorise our application
     # They will be asked for Government Gateway credentials and
     # to approve access to the specified scope for our application.
-    my $url = $auth->authorisation_url(
+    my $url = $auth->authorisation_url({
         scopes => ['read:vat', 'write:vat'],
         redirect_uri => 'urn:ietf:wg:oauth:2.0:oob',
         state => 'session-cookie-hash-or-similar-opaque-value',
-    );
+    });
 
     # Once user has authorised our application, an authorisation code
     # is generated. This is either copy/pasted back into our application
-    # by the user, or supplied via a callback uri parameter. The
+    # by the user, or supplied via a callback uri. The
     # authorisation code is valid for 10 minutes.
 
     # Exchange access code for an access token.
-    my $result = $auth->get_access_token(
+    my $result = $auth->get_access_token({
         access_code => $access_code,
         redirect_uri => 'urn:ietf:wg:oauth:2.0:oob',
-    );
+    });
     $result->is_success or warn "ERROR: ", $result->data->{message};
 
     # Has token expired?
@@ -70,12 +73,12 @@ L<https://developer.service.hmrc.gov.uk/api-documentation/docs/authorisation/use
     $auth->refresh_tokens;
 
     # The tokens can be retained and used by another instance
-    my $new_auth = WebService::HMRC::Authenticate->new(
+    my $new_auth = WebService::HMRC::Authenticate->new({
         client_id => $client_id,
         client_secret => $client_secret,
         access_token => $access_token,
         refresh_token => $refresh_token,
-    )
+    })
 
     # Refreshing will then populate scope and expires_epoch properties
     $new_auth->refresh;
@@ -190,7 +193,7 @@ has scopes => (
 
 =head1 METHODS
 
-=head2 authorisation_url(scopes => \@scopes, redirect_uri => $uri, [state => $state])
+=head2 authorisation_url({ scopes => \@scopes, redirect_uri => $uri, [state => $state] })
 
 Returns a URI object representing the url to which the a user should be
 directed to authorise this application for the specified scopes. In string
@@ -226,25 +229,24 @@ response to our authorisation request.
 
 sub authorisation_url {
 
-    my $self = shift;
-    my %args = @_;
+    my ($self, $args) = @_;
 
-    defined $args{scopes} or croak 'scopes not defined';
-    defined $args{redirect_uri} or croak "redirect_uri not defined";
+    defined $args->{scopes} or croak 'scopes not defined';
+    defined $args->{redirect_uri} or croak "redirect_uri not defined";
     $self->has_client_id or croak 'client_id property not defined for object';
 
     my $uri = $self->endpoint_url('/oauth/authorize');
-    my $scope_string = join(' ', @{$args{scopes}});
+    my $scope_string = join(' ', @{$args->{scopes}});
     my $query_params = {
         response_type => 'code',
         client_id => $self->client_id,
         scope => $scope_string,
-        redirect_uri => $args{redirect_uri}
+        redirect_uri => $args->{redirect_uri}
     };
 
     # state is an optional parameter
-    if(defined $args{state}) {
-        $query_params->{state} = $args{state};
+    if(defined $args->{state}) {
+        $query_params->{state} = $args->{state};
     }
 
     $uri->query_form($query_params);
@@ -253,7 +255,7 @@ sub authorisation_url {
 }
 
 
-=head2 get_access_token(access_code => $access_code, redirect_uri => $redirect_uri)
+=head2 get_access_token({ access_code => $access_code, redirect_uri => $redirect_uri })
 
 Exchanges the supplied access_code for an access_token.
 
@@ -275,11 +277,10 @@ for more information about response data and possible error codes.
 
 sub get_access_token {
 
-    my $self = shift;
-    my %args = @_;
+    my ($self, $args) = @_;
 
-    defined $args{authorisation_code} or croak 'authorisation_code not defined';
-    defined $args{redirect_uri} or croak 'redirect_uri not defined';
+    defined $args->{authorisation_code} or croak 'authorisation_code not defined';
+    defined $args->{redirect_uri} or croak 'redirect_uri not defined';
     $self->has_client_id or croak 'client_id property not defined for object';
     $self->has_client_secret or croak 'client_secret property not defined for object';
 
@@ -288,8 +289,8 @@ sub get_access_token {
         grant_type => 'authorization_code',
         client_id => $self->client_id,
         client_secret => $self->client_secret,
-        code => $args{authorisation_code},
-        redirect_uri => $args{redirect_uri}
+        code => $args->{authorisation_code},
+        redirect_uri => $args->{redirect_uri}
     };
     my $http_response = $self->ua->post($uri, $params);
     my $result = WebService::HMRC::Response->new(http => $http_response);
@@ -319,7 +320,6 @@ for more information about response data and possible error codes.
 sub refresh_tokens {
 
     my $self = shift;
-    my %args = @_;
 
     $self->has_refresh_token or croak 'refresh_token not defined for object';
     $self->has_client_id or croak 'client_id property not defined for object';
@@ -342,8 +342,11 @@ sub refresh_tokens {
 
 =head2 extract_tokens($hashref)
 
-Accepts a hashref representing the hmrc response to a token request, updating
-the access_token, refresh_token and expires_epoch properties of this class.
+Accepts a hashref representing a set of tokens, such as the response from
+an hmrc token endpoint.
+
+Updates the access_token, refresh_token and expires_epoch properties of this
+class.
 
 Returns true on success.
 
