@@ -2,6 +2,7 @@ package WebService::HMRC::Request;
 
 use 5.006;
 use Carp;
+use JSON::MaybeXS qw(encode_json);
 use LWP::UserAgent;
 use Moose;
 use namespace::autoclean;
@@ -62,6 +63,16 @@ headers set and a lower-level method for constructing api endpoint urls.
     });
     print $response->data->{message} if $response->is_success;
     
+    # post data as json to an application-restricted endpoint
+    my $data = {serviceNames => ['mtd-vat']};
+    my $response = $r->post_endpoint_json({
+        endpoint => '/create-test-user/organisations',
+        data => $data,
+        auth_type => 'application',
+    });
+    print $response->data->{userId} if $response->is_success;
+
+
 =head1 PROPERTIES
 
 =head2 auth
@@ -161,7 +172,7 @@ sub endpoint_url {
 }
 
 
-=head2 get_endpoint({ endpoint => $endpoint, [auth_type => $auth_type,] [parameters => \%params] })
+=head2 get_endpoint({ endpoint => $endpoint, [auth_type => $auth_type,] [parameters => \%params,] [headers => \@headers] })
 
 Retrieve a response from an HMRC Making Tax Digital api endpoint, using
 http get. Authorisation headers appropriate to the specified authorisation
@@ -173,7 +184,7 @@ Returns a WebService::HMRC::Response object reference.
 
 =over
 
-=item url
+=item endpoint
 
 Mandatory parameter specifying the endpoint to be accessed, for example
 '/hello/world'. Combined with base_url to build a fully-qualified url.
@@ -184,14 +195,17 @@ Optional parameter. If specified, must be one of 'open', 'user', or
 'application', corresponding to the different types of authentication
 used by HMRC MTD apis. If not specified, or undef, defaults to 'open'.
 
-=item parameters:
+=item parameters
 
-Optional parameter. A hashref containing query parameters to be appended
-to the endpoint url. 
+Optional parameter. A hashref containing query parameters and their
+associated value to be appended to the endpoint url. 
+
+=item headers
+
+Optional parameter. An array of key/value pairs send as request headers in
+addition to the default `Accept` header.
 
 =back
-
-
 
 =cut
 
@@ -237,6 +251,92 @@ sub get_endpoint {
 
     return $response;
 }
+
+
+=head2 post_endpoint_json({ endpoint => $endpoint, data => $ref, [auth_type => $auth_type,] [headers => \@headers] })
+
+Post data encoded as json to an HMRC Making Tax Digital api endpoint.
+
+Authorisation headers appropriate to the specified authorisation
+type are added to the request.
+
+Returns a WebService::HMRC::Response object reference.
+
+=head3 Parameters:
+
+=over
+
+=item endpoint
+
+Required parameter specifying the endpoint to be accessed, for example
+'/hello/world'. Combined with base_url to build a fully-qualified url.
+
+=item data
+
+Required parameter. Reference to a perl data structure, either a hashref
+or an arrayref, which is encoded to json for submission.
+
+=item auth_type
+
+Optional parameter. If specified, must be one of 'open', 'user', or
+'application', corresponding to the different types of authentication
+used by HMRC MTD apis. If not specified, or undef, defaults to 'open'.
+
+=item headers
+
+Optional parameter. An array of key/value pairs send as request headers in
+addition to the default `Accept` header.
+
+=back
+
+=cut
+
+sub post_endpoint_json {
+
+    my ($self, $args) = @_;
+    $args->{auth_type} ||= 'open';
+
+    $args->{data} && ref $args->{data}
+        or croak 'data parameter is missing or not a reference';
+
+    my $uri = $self->endpoint_url($args->{endpoint});
+    my @headers = (
+        'Content-Type' => 'application/json',
+    );
+    my $body = encode_json($args->{data});
+
+    # Add authentication headers
+    if($args->{auth_type} eq 'application') {
+        $self->auth->has_server_token
+            or croak "auth->server_token is not defined";
+        push @headers, 'Authorization' => 'Bearer ' . $self->auth->server_token;
+    }
+    elsif($args->{auth_type} eq 'user') {
+        $self->auth->has_access_token
+            or croak "auth->access_token is not defined";
+        push @headers, 'Authorization' => 'Bearer ' . $self->auth->access_token;
+    }
+
+    # Add optional request headers
+    if($args->{headers}) {
+        push @headers, @{$args->{headers}};
+    }
+
+    # Query server
+    my $result = $self->ua->post(
+        $uri,
+        @headers,
+        Content => $body,
+    );
+    my $response = WebService::HMRC::Response->new({ http => $result });
+
+    unless($response->is_success) {
+        $self->_display_response_errors($response);
+    }
+
+    return $response;
+}
+
 
 
 # PRIVATE METHODS
