@@ -64,9 +64,9 @@ SKIP: {
     );
 
     isa_ok(
-        $auth = WebService::HMRC::Authenticate->new(
+        $auth = WebService::HMRC::Authenticate->new({
             server_token => $ENV{HMRC_SERVER_TOKEN}
-        ),
+        }),
         'WebService::HMRC::Authenticate',
         'created auth object with supplied server_token'
     );
@@ -88,9 +88,9 @@ SKIP: {
     );
 
     isa_ok(
-        $auth = WebService::HMRC::Authenticate->new(
+        $auth = WebService::HMRC::Authenticate->new({
             access_token => $ENV{HMRC_ACCESS_TOKEN}
-        ),
+        }),
         'WebService::HMRC::Authenticate',
         'created auth object with supplied access_token'
     );

@@ -35,31 +35,31 @@ headers set and a lower-level method for constructing api endpoint urls.
 =head1 SYNOPSIS
 
     use WebService::HMRC::Request;
-    my $r = WebService::HMRC::Request->new(
+    my $r = WebService::HMRC::Request->new({
         base_url    => 'https://test-api.service.hmrc.gov.uk/',
         api_version => '1.0',
-    );
+    });
 
-    # open endpoint
-    my $response = $r->get_endpoint(
+    # get from open endpoint
+    my $response = $r->get_endpoint({
         endpoint => '/hello/world',
-    );
+    });
     print $response->data->{message} if $response->is_success;
 
-    # application-restricted endpoint
+    # get from application-restricted endpoint
     $r->auth->server_token('MY_SERVER_TOKEN');
-    my $response = $r->get_endpoint(
+    my $response = $r->get_endpoint({
         endpoint => '/hello/application',
         auth_type => 'application',
-    );
+    });
     print $response->data->{message} if $response->is_success;
    
-    # user-restricted endpoint
+    # get from user-restricted endpoint
     $r->auth->access_token('MY_ACCESS_TOKEN');
-    my $response = $r->get_endpoint(
+    my $response = $r->get_endpoint({
         endpoint => '/hello/user',
         auth_type => 'application',
-    );
+    });
     print $response->data->{message} if $response->is_success;
     
 =head1 PROPERTIES
@@ -161,7 +161,7 @@ sub endpoint_url {
 }
 
 
-=head2 get_endpoint(endpoint => $endpoint, [auth_type => $auth_type])
+=head2 get_endpoint({ endpoint => $endpoint, [auth_type => $auth_type,] [parameters => \%params] })
 
 Retrieve a response from an HMRC Making Tax Digital api endpoint, using
 http get. Authorisation headers appropriate to the specified authorisation
@@ -169,7 +169,7 @@ type are added to the request.
 
 Returns a WebService::HMRC::Response object reference.
 
-Parameters:
+=head3 Parameters:
 
 =over
 
@@ -180,38 +180,56 @@ Mandatory parameter specifying the endpoint to be accessed, for example
 
 =item auth_type
 
-Optional parameter. If specified must be one of 'open', 'user', or
+Optional parameter. If specified, must be one of 'open', 'user', or
 'application', corresponding to the different types of authentication
 used by HMRC MTD apis. If not specified, or undef, defaults to 'open'.
 
+=item parameters:
+
+Optional parameter. A hashref containing query parameters to be appended
+to the endpoint url. 
+
 =back
+
+
 
 =cut
 
 sub get_endpoint {
 
-    my $self = shift;
-    my %args = @_;
-    $args{auth_type} ||= 'open';
-    my $url = $self->endpoint_url($args{endpoint});
+    my ($self, $args) = @_;
+    $args->{auth_type} ||= 'open';
+    my $uri = $self->endpoint_url($args->{endpoint});
     my @headers;
 
-    if($args{auth_type} eq 'application') {
+    # Add authentication headers
+    if($args->{auth_type} eq 'application') {
         $self->auth->has_server_token
             or croak "auth->server_token is not defined";
         push @headers, 'Authorization' => 'Bearer ' . $self->auth->server_token;
     }
-    elsif($args{auth_type} eq 'user') {
+    elsif($args->{auth_type} eq 'user') {
         $self->auth->has_access_token
             or croak "auth->access_token is not defined";
         push @headers, 'Authorization' => 'Bearer ' . $self->auth->access_token;
     }
 
+    # Add optional query parameters
+    if($args->{parameters}) {
+        $uri->query_form($args->{parameters});
+    }
+
+    # Add optional request headers
+    if($args->{headers}) {
+        push @headers, @{$args->{headers}};
+    }
+
+    # Query server
     my $result = $self->ua->get(
-        $url,
+        $uri,
         @headers
     );
-    my $response = WebService::HMRC::Response->new(http => $result);
+    my $response = WebService::HMRC::Response->new({ http => $result });
 
     unless($response->is_success) {
         $self->_display_response_errors($response);

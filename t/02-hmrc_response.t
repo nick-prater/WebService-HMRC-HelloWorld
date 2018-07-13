@@ -19,9 +19,9 @@ $http_response = HTTP::Response->new({
     is_success => 1,
 });
 
-$r = WebService::HMRC::Response->new(
+$r = WebService::HMRC::Response->new({
     http => $http_response,
-);
+});
 isa_ok($r, 'WebService::HMRC::Response', 'WebService::HMRC::Response object created OK for valid json content');
 is($r->data->{message}, 'MESSAGE TEXT', 'valid json content parsed correctly into data property - message');
 is($r->data->{code}, 'RESPONSE_CODE', 'valid json content parsed correctly into data property - code');
@@ -35,9 +35,9 @@ $http_response = HTTP::Response->new({
     is_success => 0,
 });
 
-$r = WebService::HMRC::Response->new(
+$r = WebService::HMRC::Response->new({
     http => $http_response,
-);
+});
 isa_ok($r, 'WebService::HMRC::Response', 'WebService::HMRC::Response object created OK for invalid json content');
 is($r->data->{message}, 'No valid JSON data received from api call. 500 Internal Server Error', 'data contains error message for invalid JSON');
 is($r->data->{code}, 'INVALID_RESPONSE', 'data contains error message for invalid JSON');

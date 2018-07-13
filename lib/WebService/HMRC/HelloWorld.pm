@@ -68,9 +68,9 @@ sub hello_world {
 
     my $self = shift;
 
-    return $self->get_endpoint(
+    return $self->get_endpoint({
         endpoint => '/hello/world',
-    );
+    });
 }
 
 
@@ -87,10 +87,10 @@ sub hello_application {
 
     my $self = shift;
 
-    return $self->get_endpoint(
+    return $self->get_endpoint({
         endpoint => '/hello/application',
         auth_type => 'application',
-    );
+    });
 }
 
 
@@ -106,10 +106,10 @@ sub hello_user {
 
     my $self = shift;
 
-    return $self->get_endpoint(
+    return $self->get_endpoint({
         endpoint => '/hello/user',
         auth_type => 'user',
-    )
+    })
 }
 
 

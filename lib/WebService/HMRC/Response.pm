@@ -25,11 +25,13 @@ our $VERSION = '0.01';
 This is part of a suite of Perl modules for interacting with the UK's HMRC
 Making Tax Digital APIs.
 
-This class represents the response from an api call.
+This class represents the response from an api call. It is inherited by
+other classes which implement bindings to HMRC APIs rather than being
+used directly.
 
 =head1 SYNOPSIS
 
-    use WebService::HMRC::HelloWorld;
+    use WebService::HMRC::HelloWorld;  # inherits this module
     my $hmrc = WebService::HMRC::HelloWorld->new();
 
     # Hello World endpoint requires no authorisation
