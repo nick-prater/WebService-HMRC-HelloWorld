@@ -6,7 +6,7 @@ use Test::More;
 use WebService::HMRC::Authenticate;
 use WebService::HMRC::Request;
 
-plan tests => 31;
+plan tests => 32;
 
 my ($uri, $ws, $response, $auth);
 
@@ -82,6 +82,7 @@ isa_ok(
 );
 is($response->data->{code}, 'INVALID_RESPONSE', 'INVALID_RESPONSE code generated for invalid "open" url/endpoint');
 is($response->http->request->header('Authorization'), undef, 'No Authorization header for "open" endpoint');
+is($response->header('content-type'), 'text/plain', 'response header correctly extracted');
 
 
 # Try retrieving an invalid 'application-restricted' url/endpoint.

@@ -4,7 +4,7 @@ use warnings;
 use Test::More;
 use WebService::HMRC::Response;
 
-plan tests => 8;
+plan tests => 9;
 
 my $http_response;
 my $r;
@@ -26,6 +26,9 @@ isa_ok($r, 'WebService::HMRC::Response', 'WebService::HMRC::Response object crea
 is($r->data->{message}, 'MESSAGE TEXT', 'valid json content parsed correctly into data property - message');
 is($r->data->{code}, 'RESPONSE_CODE', 'valid json content parsed correctly into data property - code');
 ok($r->is_success, 'is_success is true with valid response data');
+is($r->header('FAKE_HEADER'), 'FAKE_HEADER-VALUE', 'exracted header from response');
+
+
 
 
 # Test with invalid JSON content
@@ -54,12 +57,10 @@ sub new {
    bless $self;
    return $self;
 }
-
 sub decoded_content {
     my $self = shift;
     return $self->{decoded_content};
 }
-
 sub status_line {
     my $self = shift;
     return $self->{status_line};
@@ -67,4 +68,9 @@ sub status_line {
 sub is_success {
     my $self = shift;
     return $self->{is_success};
+}
+sub header {
+    my $self = shift;
+    my $header_name = shift;
+    return "$header_name-VALUE";
 }

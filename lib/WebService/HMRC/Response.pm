@@ -78,7 +78,7 @@ has http => (
     isa => 'HTTP::Response',
     required => 1,
     trigger => \&_parse_http_response,
-    handles => ['is_success'],
+    handles => ['is_success', 'header'],
 );
 
 
@@ -88,7 +88,13 @@ has http => (
 
 Shortcut to the HTTP::Response is_success method.
 
+=head2 header($header_name)
+
+Returns the value of the specified response header, or undef if it does
+not exist. Shortcut to the HTTP::Response header method.
+
 =cut
+
 
 # PRIVATE METHODS
 
