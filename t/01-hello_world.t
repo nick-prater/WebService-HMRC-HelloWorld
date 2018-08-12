@@ -1,7 +1,6 @@
 #!perl -T
 use strict;
 use warnings;
-use Data::Dumper;
 use Test::Exception;
 use Test::More;
 use WebService::HMRC::HelloWorld;
@@ -101,6 +100,3 @@ SKIP: {
     ok($r->is_success, '/hello/user endpoint returned OK response');
     is($r->data->{message}, 'Hello User', '/hello/user endpoint returned "Hello User" message');
 }
-
-
-
