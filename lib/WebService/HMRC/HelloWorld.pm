@@ -8,7 +8,7 @@ extends 'WebService::HMRC::Request';
 
 =head1 NAME
 
-WebService::HMRC::HelloWorld - Access the UK HMRC HelloWorld API
+WebService::HMRC::HelloWorld - Interact with the UK HMRC HelloWorld API
 
 =head1 VERSION
 
@@ -17,16 +17,6 @@ Version 0.01
 =cut
 
 our $VERSION = '0.01';
-
-=head1 DESCRIPTION
-
-Perl module to interact with the UK's HMRC Making Tax Digital
-`Hello World` API. This is often used as a basic test of configuration
-and credentials before using their more involved APIs for managing
-corporate and personal tax affairs.
-
-For more information, see:
-L<https://developer.service.hmrc.gov.uk/api-documentation/docs/api/service/api-example-microservice/1.0>
 
 =head1 SYNOPSIS
 
@@ -46,7 +36,28 @@ L<https://developer.service.hmrc.gov.uk/api-documentation/docs/api/service/api-e
     $hmrc->auth->access_token( $my_access_token );
     $result = $hmrc->hello_user();
     print $result->data->{message} if $result->is_success;
-    
+
+=head1 DESCRIPTION
+
+Perl module to interact with the UK's HMRC Making Tax Digital
+`Hello World` API. This is often used as a basic test of configuration
+and credentials before using their more involved APIs for managing
+corporate and personal tax affairs.
+
+For more information, see:
+L<https://developer.service.hmrc.gov.uk/api-documentation/docs/api/service/api-example-microservice/1.0>
+
+=head1 REQUIRES
+
+=over
+
+=item L<WebService::HMRC>
+
+=back
+
+=head1 EXPORTS
+
+Nothing   
    
 =head1 PROPERTIES
 
@@ -112,6 +123,48 @@ sub hello_user {
     })
 }
 
+=head1 INSTALLATION
+
+To install this module, run the following commands:
+
+    perl Makefile.PL
+    make
+    make test
+    make install
+
+=head1 AUTHORISATION
+
+Except for a small number of open endpoints, access to the HMRC APIs requires
+appliction or user credentials. These must be obtained from HMRC. Application
+credentials (and documentation) may be obtained from their
+L<Developer Hub|https://developer.service.hmrc.gov.uk/api-documentation>
+
+=head1 TESTING
+
+The basic tests are run as part of the installation instructions shown above
+and do not require authorisation with HMRC. A call will be made to the open
+C</hello/world> api endpoint, which requires a working internet connection
+and that the HMRC sandbox test environment is operational.
+
+Developer pre-release tests may be run with the following command:
+
+    prove -l xt/
+
+With a working internet connection and appropriate HMRC credentials, specified
+as environment variables, interaction with the protected C<HelloWorld> endpoints
+can be tested:
+
+=over
+
+=item * Test access to an application-restricted endpoint:
+
+    HMRC_SERVER_TOKEN=[MY-SERVER-TOKEN] make test TEST_VERBOSE=1
+
+=item * Test access to a user-restricted endpoint:
+
+    HMRC_ACCESS_TOKEN=[MY-SERVER-TOKEN] make test TEST_VERBOSE=1
+
+=back
 
 =head1 AUTHOR
 
@@ -119,9 +172,12 @@ Nick Prater, <nick@npbroadcast.com>
 
 =head1 BUGS
 
-Please report any bugs or feature requests to C<bug-webservice-hmrc-helloworld at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=WebService-HMRC-HelloWorld>.  I will be notified, and then you'll
-automatically be notified of progress on your bug as I make changes.
+Please report any bugs or feature requests to
+C<bug-webservice-hmrc-helloworld at rt.cpan.org>, or through
+the web interface at
+L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=WebService-HMRC-HelloWorld>.
+I will be notified, and then you'll automatically be notified of progress on
+your bug as I make changes.
 
 =head1 SUPPORT
 
@@ -129,6 +185,11 @@ You can find documentation for this module with the perldoc command.
 
     perldoc WebService::HMRC::HelloWorld
 
+The C<README.pod> file supplied with this distribution is generated from the
+L<WebService::HMRC::HelloWorld> module's pod by running the following
+command from the distribution root:
+
+    perldoc -u lib/WebService/HMRC/HelloWorld.pm > README.pod
 
 You can also look for information at:
 
@@ -150,6 +211,10 @@ L<http://cpanratings.perl.org/d/WebService-HMRC-HelloWorld>
 
 L<http://search.cpan.org/dist/WebService-HMRC-HelloWorld/>
 
+=item * Github
+
+L<https://github.com/nick-prater/WebService-HMRC-HelloWorld>
+
 =back
 
 =head1 ACKNOWLEDGEMENTS
@@ -159,7 +224,7 @@ L<LedgerSMB|https://ledgersmb.org/> open source accounting software.
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2018 Nick Prater.
+Copyright 2018 Nick Prater, NP Broadcast Ltd.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the the Artistic License (2.0). You may obtain a
@@ -196,7 +261,6 @@ YOUR LOCAL LAW. UNLESS REQUIRED BY LAW, NO COPYRIGHT HOLDER OR
 CONTRIBUTOR WILL BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, OR
 CONSEQUENTIAL DAMAGES ARISING IN ANY WAY OUT OF THE USE OF THE PACKAGE,
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
 
 =cut
 
