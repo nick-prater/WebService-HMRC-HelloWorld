@@ -107,7 +107,8 @@ sub hello_application {
 
 =head2 hello_user()
 
-Retrieve a "Hello User" message. This is a user-restricted endpoint.
+Retrieve a "Hello User" message. This is a user-restricted endpoint
+requiring permission for the C<hello> service scope.
 
 Returns a WebService::HMRC::Response object.
 
@@ -155,7 +156,7 @@ from the HMRC Developer Hub.
 
 The C<hello_user()> method accesses a 'user-restricted' endpoint and
 therefore requires an C<access token> for authorisation, obtained when
-a user grants access to the application for this service.
+a user grants permission to the application for the C<hello> service scope.
 
 For more details on obtaining and using access tokens, See
 L<WebService::HMRC::Authenticate>.
