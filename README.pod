@@ -102,6 +102,31 @@ appliction or user credentials. These must be obtained from HMRC. Application
 credentials (and documentation) may be obtained from their
 L<Developer Hub|https://developer.service.hmrc.gov.uk/api-documentation>
 
+Access to the HMRC C<Hello World> service requires that an application
+be registered with HMRC and 'subscribed' for this api.
+
+This module allows all three of the possible authorisation types to be
+exercised.
+
+The C<hello_world()> method accesses an 'open' endpoint and does not
+require authorisation.
+
+The C<hello_application()> method accesses an 'application-restricted'
+endpoint and therefore requires a C<server token> for authorisation. This is
+issued when the application is registered with HMRC and may be retrieved
+from the HMRC Developer Hub.
+
+The C<hello_user()> method accesses a 'user-restricted' endpoint and
+therefore requires an C<access token> for authorisation, obtained when
+a user grants access to the application for this service.
+
+For more details on obtaining and using access tokens, See
+L<WebService::HMRC::Authenticate>.
+
+Further information, application credentials and documentation may be obtained
+from the
+L<HMRC Developer Hub|https://developer.service.hmrc.gov.uk/api-documentation>.
+
 =head1 TESTING
 
 The basic tests are run as part of the installation instructions shown above
