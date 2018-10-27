@@ -225,10 +225,6 @@ You can also look for information at:
 
 L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=WebService-HMRC-HelloWorld>
 
-=item * AnnoCPAN: Annotated CPAN documentation
-
-L<http://annocpan.org/dist/WebService-HMRC-HelloWorld>
-
 =item * CPAN Ratings
 
 L<http://cpanratings.perl.org/d/WebService-HMRC-HelloWorld>
